@@ -1,0 +1,24 @@
+# Keep secrets and local artifacts out of the image / build context
+credentials/
+**/credentials/
+.env
+.env.*
+*.pem
+*.key
+openshift/
+.git
+.gitignore
+.dockerignore
+Dockerfile
+README.md
+tests/
+requirements-dev.txt
+__pycache__/
+**/__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.DS_Store
+.idea/
+.vscode/

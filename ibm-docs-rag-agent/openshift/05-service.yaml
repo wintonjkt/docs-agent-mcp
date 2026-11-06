@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ibm-docs-rag-mcp
+  namespace: astra-ingest
+  labels:
+    app.kubernetes.io/name: ibm-docs-rag-mcp
+    app.kubernetes.io/part-of: ibm-docs-rag
+spec:
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: ibm-docs-rag-mcp
+  type: ClusterIP

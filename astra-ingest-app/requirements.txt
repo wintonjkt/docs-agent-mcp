@@ -1,0 +1,4 @@
+fastapi==0.128.8
+uvicorn==0.39.0
+astrapy==2.2.1
+ibm-cos-sdk==2.14.3

@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: astra-ingest
+  labels:
+    app.kubernetes.io/name: astra-ingest-app
+    app.kubernetes.io/part-of: astra-ingest

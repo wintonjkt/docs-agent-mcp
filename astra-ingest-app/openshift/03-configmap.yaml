@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: astra-ingest-config
+  namespace: astra-ingest
+  labels:
+    app.kubernetes.io/name: astra-ingest-app
+data:
+  COS_ENDPOINT: "https://s3.jp-tok.cloud-object-storage.appdomain.cloud"
+  SOURCE_BUCKET: "cloud-object-storage-cos-standard-vk7"
+  ARCHIVE_BUCKET: "ww-archive"
+  COLLECTION_NAME: "ibm_docs_rag2"
+  JOBS_COLLECTION: "ingest_jobs"
+  CONCURRENCY: "8"
+  INSERT_BATCH: "40"
+  LIST_PAGE_SIZE: "25"
+  MAX_RETRIES: "3"
+  RETRY_BASE_DELAY: "1.0"
+  RETRY_MAX_DELAY: "8.0"
+  THROTTLE_BASE_DELAY: "5.0"
+  THROTTLE_MAX_DELAY: "60.0"
+  THROTTLE_MAX_RETRIES: "5"
+  LEASE_SECONDS: "180"

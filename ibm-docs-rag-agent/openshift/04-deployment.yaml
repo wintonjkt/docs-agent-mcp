@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ibm-docs-rag-mcp
+  namespace: astra-ingest
+  labels:
+    app.kubernetes.io/name: ibm-docs-rag-mcp
+    app.kubernetes.io/part-of: ibm-docs-rag
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ibm-docs-rag-mcp
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ibm-docs-rag-mcp
+        app.kubernetes.io/part-of: ibm-docs-rag
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: ibm-docs-rag-mcp
+          image: image-registry.openshift-image-registry.svc:5000/astra-ingest/ibm-docs-rag-mcp:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: ibm-docs-rag-mcp-config
+            - secretRef:
+                name: astra-ingest-secrets
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL

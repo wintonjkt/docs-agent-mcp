@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Astra DB Document Ingestion Dashboard</title>
+    <style>
+        :root {
+            --bg: #f4f7fb;
+            --surface: #ffffff;
+            --border: #e0e4eb;
+            --text-primary: #12161a;
+            --text-secondary: #5a6872;
+            --accent: #0f62fe;
+            --accent-hover: #0353e9;
+            --success: #198038;
+            --warning: #f1c21b;
+            --danger: #da1e28;
+            --badge-bg: #edf5ff;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background-color: var(--bg);
+            color: var(--text-primary);
+            line-height: 1.5;
+            padding: 24px;
+        }
+        .container { max-width: 1100px; margin: 0 auto; }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+        h1 { font-size: 22px; font-weight: 600; }
+        .token-bar { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+        input, select, button {
+            font-family: inherit;
+            font-size: 14px;
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            outline: none;
+        }
+        input:focus, select:focus { border-color: var(--accent); }
+        button {
+            cursor: pointer;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            font-weight: 500;
+            transition: all 0.15s ease;
+        }
+        button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+        button.primary:hover { background: var(--accent-hover); }
+        button.danger { background: var(--danger); color: #fff; border-color: var(--danger); }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 20px;
+            margin-bottom: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+        }
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        .card-title { font-size: 16px; font-weight: 600; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+        .stat-box { background: var(--bg); padding: 12px; border-radius: 4px; border: 1px solid var(--border); }
+        .stat-label { font-size: 12px; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 4px; }
+        .stat-val { font-size: 20px; font-weight: 600; }
+        .form-group { margin-bottom: 12px; }
+        .form-group label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 4px; color: var(--text-secondary); }
+        .form-group input { width: 100%; }
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .badge-running { background: #defbe6; color: var(--success); }
+        .badge-paused { background: #fef3d6; color: #8a6d10; }
+        .badge-completed { background: #edf5ff; color: var(--accent); }
+        .badge-failed { background: #ffe3e5; color: var(--danger); }
+        .progress-bar-bg { background: var(--bg); height: 8px; border-radius: 4px; overflow: hidden; margin-top: 8px; }
+        .progress-bar-fill { background: var(--accent); height: 100%; width: 0%; transition: width 0.3s ease; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 12px; }
+        th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+        th { background: var(--bg); color: var(--text-secondary); font-weight: 600; }
+        .log-box {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            font-family: monospace;
+            font-size: 12px;
+            padding: 12px;
+            border-radius: 4px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .log-entry { margin-bottom: 4px; }
+        .log-time { color: #858585; margin-right: 8px; }
+        .banner-warning { background: #fff8e1; border: 1px solid #ffe082; color: #855700; padding: 12px 16px; border-radius: 4px; margin-bottom: 16px; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div>
+                <h1>Astra DB Ingestion Service</h1>
+                <p style="font-size: 13px; color: var(--text-secondary);">High-resilience COS to Astra DB vector ingestion</p>
+            </div>
+            <div class="token-bar">
+                <input type="password" id="apiToken" placeholder="Enter Access Token..." style="width: 220px;">
+                <button onclick="saveToken()" class="primary">Save Token</button>
+            </div>
+        </header>
+
+        <div id="breakerBanner" class="banner-warning" style="display: none;"></div>
+
+        <div class="grid-2">
+            <!-- Start Job Card -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Start Ingestion Job</span>
+                </div>
+                <div class="form-group">
+                    <label>Source Bucket</label>
+                    <input type="text" id="srcBucket" value="cloud-object-storage-cos-standard-vk7">
+                </div>
+                <div class="form-group">
+                    <label>Prefix Filter</label>
+                    <input type="text" id="prefix" placeholder="e.g. docs/ or press Preview">
+                </div>
+                <div class="form-group">
+                    <label>Archive Bucket (Move on success)</label>
+                    <input type="text" id="archiveBucket" value="ww-archive">
+                </div>
+                <div class="form-group">
+                    <label>Concurrency</label>
+                    <input type="number" id="concurrency" value="8" min="1" max="32">
+                </div>
+                <div style="display: flex; gap: 8px; margin-top: 16px;">
+                    <button onclick="startJob()" class="primary" style="flex: 1;">Start Ingestion</button>
+                    <button onclick="previewPrefix()">Preview Objects</button>
+                </div>
+                <div id="previewResult" style="margin-top: 12px; font-size: 13px; color: var(--text-secondary);"></div>
+            </div>
+
+            <!-- Active Job Control Card -->
+            <div class="card" id="activeJobCard">
+                <div class="card-header">
+                    <div>
+                        <span class="card-title">Active Job</span>
+                        <span id="activeJobId" style="font-size: 13px; color: var(--text-secondary); margin-left: 8px;"></span>
+                    </div>
+                    <span id="activeJobBadge" class="badge">No Active Job</span>
+                </div>
+                <div class="grid-4">
+                    <div class="stat-box">
+                        <div class="stat-label">Ingested</div>
+                        <div class="stat-val" id="statIngested">0</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">Skipped</div>
+                        <div class="stat-val" id="statSkipped">0</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">Archived</div>
+                        <div class="stat-val" id="statArchived">0</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">Failed</div>
+                        <div class="stat-val" id="statFailed">0</div>
+                    </div>
+                </div>
+                <div style="font-size: 13px; color: var(--text-secondary); display: flex; justify-content: space-between;">
+                    <span>Throughput: <strong id="statThroughput">0</strong> files/sec</span>
+                    <span>ETA: <strong id="statEta">--</strong></span>
+                </div>
+                <div class="progress-bar-bg">
+                    <div class="progress-bar-fill" id="progressBar"></div>
+                </div>
+                <div style="margin-top: 16px; display: flex; gap: 8px;">
+                    <button id="btnPause" onclick="pauseActiveJob()" disabled>Pause</button>
+                    <button id="btnResume" onclick="resumeActiveJob()" disabled>Resume</button>
+                    <button id="btnStop" onclick="stopActiveJob()" class="danger" disabled>Stop</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Events Log -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Job Event Log</span>
+            </div>
+            <div class="log-box" id="eventsLog">
+                <div class="log-entry"><span class="log-time">[System]</span> Ready. Select a job or start a new run.</div>
+            </div>
+        </div>
+
+        <!-- Jobs History -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Job History</span>
+                <button onclick="loadJobs()">Refresh</button>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Job ID</th>
+                        <th>Bucket / Prefix</th>
+                        <th>Status</th>
+                        <th>Ingested</th>
+                        <th>Archived</th>
+                        <th>Failed</th>
+                        <th>Created</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="jobsTableBody">
+                    <tr><td colspan="8" style="text-align: center; color: var(--text-secondary);">Loading jobs...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        let currentJobId = null;
+        let pollTimer = null;
+
+        function getHeaders() {
+            const token = localStorage.getItem('astra_ingest_token') || '';
+            return {
+                'Content-Type': 'application/json',
+                'X-Access-Token': token
+            };
+        }
+
+        function saveToken() {
+            const token = document.getElementById('apiToken').value.trim();
+            if (token) {
+                localStorage.setItem('astra_ingest_token', token);
+                alert('Access token saved.');
+                loadJobs();
+            }
+        }
+
+        window.onload = function() {
+            const saved = localStorage.getItem('astra_ingest_token');
+            if (saved) {
+                document.getElementById('apiToken').value = saved;
+            }
+            loadJobs();
+            startPolling();
+        };
+
+        async function startJob() {
+            const bucket = document.getElementById('srcBucket').value.trim();
+            const prefix = document.getElementById('prefix').value.trim();
+            const archiveBucket = document.getElementById('archiveBucket').value.trim();
+            const concurrency = parseInt(document.getElementById('concurrency').value) || 8;
+
+            try {
+                const res = await fetch('/api/jobs', {
+                    method: 'POST',
+                    headers: getHeaders(),
+                    body: JSON.stringify({ bucket, prefix, archive_bucket: archiveBucket, concurrency })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'Failed to start job');
+                currentJobId = data.id;
+                loadJobDetails(currentJobId);
+                loadJobs();
+            } catch (err) {
+                alert('Error: ' + err.message);
+            }
+        }
+
+        async function previewPrefix() {
+            const bucket = document.getElementById('srcBucket').value.trim();
+            const prefix = document.getElementById('prefix').value.trim();
+            const el = document.getElementById('previewResult');
+            el.innerText = 'Scanning prefix...';
+            try {
+                const res = await fetch(`/api/preview?bucket=${encodeURIComponent(bucket)}&prefix=${encodeURIComponent(prefix)}&limit=25`, {
+                    headers: getHeaders()
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'Preview failed');
+                el.innerText = `Found ${data.count} objects under prefix '${prefix}'. ${data.has_more ? '(More available)' : '(All objects scanned)'}`;
+            } catch (err) {
+                el.innerText = 'Preview error: ' + err.message;
+            }
+        }
+
+        async function loadJobs() {
+            try {
+                const res = await fetch('/api/jobs?limit=20', { headers: getHeaders() });
+                if (!res.ok) return;
+                const jobs = await res.json();
+                renderJobsTable(jobs);
+                if (jobs.length > 0 && !currentJobId) {
+                    currentJobId = jobs[0].id;
+                    loadJobDetails(currentJobId);
+                }
+            } catch (e) {}
+        }
+
+        function renderJobsTable(jobs) {
+            const tbody = document.getElementById('jobsTableBody');
+            if (!jobs || jobs.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align: center;">No jobs found.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = jobs.map(j => `
+                <tr>
+                    <td><strong>${j.id}</strong></td>
+                    <td>${j.bucket}/${j.prefix || ''}</td>
+                    <td><span class="badge badge-${(j.status||'').toLowerCase()}">${j.status}</span></td>
+                    <td>${j.counters.ingested || 0}</td>
+                    <td>${j.counters.archived || 0}</td>
+                    <td>${j.counters.failed || 0}</td>
+                    <td>${new Date(j.created_at).toLocaleTimeString()}</td>
+                    <td><button onclick="selectJob('${j.id}')">View</button></td>
+                </tr>
+            `).join('');
+        }
+
+        function selectJob(id) {
+            currentJobId = id;
+            loadJobDetails(id);
+        }
+
+        async function loadJobDetails(id) {
+            if (!id) return;
+            try {
+                const res = await fetch(`/api/jobs/${id}`, { headers: getHeaders() });
+                if (!res.ok) return;
+                const job = await res.json();
+                renderActiveJob(job);
+            } catch (e) {}
+        }
+
+        function renderActiveJob(job) {
+            document.getElementById('activeJobId').innerText = `(${job.id})`;
+            const badge = document.getElementById('activeJobBadge');
+            badge.className = `badge badge-${job.status.toLowerCase()}`;
+            badge.innerText = job.status;
+
+            document.getElementById('statIngested').innerText = job.counters.ingested || 0;
+            document.getElementById('statSkipped').innerText = job.counters.skipped || 0;
+            document.getElementById('statArchived').innerText = job.counters.archived || 0;
+            document.getElementById('statFailed').innerText = job.counters.failed || 0;
+
+            const m = job.metrics || {};
+            document.getElementById('statThroughput').innerText = m.files_per_sec || 0;
+            document.getElementById('statEta').innerText = m.eta_seconds !== null ? `${m.eta_seconds}s` : '--';
+
+            const pct = m.percent !== null ? m.percent : (job.is_terminal ? 100 : 0);
+            document.getElementById('progressBar').style.width = `${pct}%`;
+
+            // Buttons
+            document.getElementById('btnPause').disabled = !job.allowed_actions.includes('pause');
+            document.getElementById('btnResume').disabled = !job.allowed_actions.includes('resume');
+            document.getElementById('btnStop').disabled = !job.allowed_actions.includes('stop');
+
+            // Circuit breaker banner
+            const banner = document.getElementById('breakerBanner');
+            if (job.status === 'PAUSED' && job.pause_reason && job.pause_reason.includes('circuit breaker')) {
+                banner.style.display = 'block';
+                banner.innerText = `⚠️ Job paused by Circuit Breaker: ${job.pause_reason}`;
+            } else {
+                banner.style.display = 'none';
+            }
+
+            // Events
+            const logBox = document.getElementById('eventsLog');
+            if (job.events && job.events.length > 0) {
+                logBox.innerHTML = job.events.map(e => `
+                    <div class="log-entry">
+                        <span class="log-time">[${new Date(e.at).toLocaleTimeString()}]</span>
+                        <span>${e.message}</span>
+                    </div>
+                `).join('');
+                logBox.scrollTop = logBox.scrollHeight;
+            }
+        }
+
+        async function pauseActiveJob() {
+            if (!currentJobId) return;
+            await fetch(`/api/jobs/${currentJobId}/pause`, { method: 'POST', headers: getHeaders(), body: JSON.stringify({ reason: 'User paused' }) });
+            loadJobDetails(currentJobId);
+        }
+
+        async function resumeActiveJob() {
+            if (!currentJobId) return;
+            await fetch(`/api/jobs/${currentJobId}/resume`, { method: 'POST', headers: getHeaders() });
+            loadJobDetails(currentJobId);
+        }
+
+        async function stopActiveJob() {
+            if (!currentJobId || !confirm('Are you sure you want to stop this job?')) return;
+            await fetch(`/api/jobs/${currentJobId}/stop`, { method: 'POST', headers: getHeaders(), body: JSON.stringify({ reason: 'User stopped' }) });
+            loadJobDetails(currentJobId);
+        }
+
+        function startPolling() {
+            if (pollTimer) clearInterval(pollTimer);
+            pollTimer = setInterval(() => {
+                if (!document.hidden && currentJobId) {
+                    loadJobDetails(currentJobId);
+                }
+            }, 2500);
+        }
+    </script>
+</body>
+</html>

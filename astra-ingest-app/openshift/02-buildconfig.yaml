@@ -1,0 +1,19 @@
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: astra-ingest-app
+  namespace: astra-ingest
+  labels:
+    app.kubernetes.io/name: astra-ingest-app
+spec:
+  output:
+    to:
+      kind: ImageStreamTag
+      name: astra-ingest-app:latest
+  source:
+    type: Binary
+  strategy:
+    type: Docker
+    dockerStrategy:
+      dockerfilePath: Dockerfile
+  runPolicy: Serial

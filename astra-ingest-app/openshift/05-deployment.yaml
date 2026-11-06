@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: astra-ingest-app
+  namespace: astra-ingest
+  labels:
+    app.kubernetes.io/name: astra-ingest-app
+    app.kubernetes.io/part-of: astra-ingest
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: astra-ingest-app
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: astra-ingest-app
+        app.kubernetes.io/part-of: astra-ingest
+    spec:
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: astra-ingest-app
+          image: image-registry.openshift-image-registry.svc:5000/astra-ingest/astra-ingest-app:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: astra-ingest-config
+            - secretRef:
+                name: astra-ingest-secrets
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "2000m"
+              memory: "2Gi"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL

@@ -1,0 +1,19 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: ibm-docs-rag-mcp
+  namespace: astra-ingest
+  labels:
+    app.kubernetes.io/name: ibm-docs-rag-mcp
+    app.kubernetes.io/part-of: ibm-docs-rag
+spec:
+  to:
+    kind: Service
+    name: ibm-docs-rag-mcp
+    weight: 100
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  wildcardPolicy: None

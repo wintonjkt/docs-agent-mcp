@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+*.class
+credentials/
+*.key
+*.pem
+*.token
+*.json.secret
+.pytest_cache/
+.coverage
+htmlcov/
+.cache/
+.venv/
+venv/
+.DS_Store

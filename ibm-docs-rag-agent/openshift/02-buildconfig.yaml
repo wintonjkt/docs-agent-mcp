@@ -1,0 +1,20 @@
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: ibm-docs-rag-mcp
+  namespace: astra-ingest
+  labels:
+    app.kubernetes.io/name: ibm-docs-rag-mcp
+    app.kubernetes.io/part-of: ibm-docs-rag
+spec:
+  output:
+    to:
+      kind: ImageStreamTag
+      name: ibm-docs-rag-mcp:latest
+  source:
+    type: Binary
+  strategy:
+    type: Docker
+    dockerStrategy:
+      dockerfilePath: Dockerfile
+  runPolicy: Serial
