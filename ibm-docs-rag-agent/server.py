@@ -33,7 +33,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger("ibm-docs-rag-mcp")
 
+from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse
+from mcp.server.fastmcp.server import TransportSecuritySettings
 
 # Initialize FastMCP Server
 mcp = FastMCP(
@@ -45,6 +47,13 @@ mcp = FastMCP(
     ),
     host="0.0.0.0",
     port=8080,
+)
+
+# Disable DNS rebinding checks to allow OpenShift Route hostnames and proxy domains
+mcp.settings.transport_security = TransportSecuritySettings(
+    enable_dns_rebinding_protection=False,
+    allowed_hosts=["*"],
+    allowed_origins=["*"],
 )
 
 
@@ -425,6 +434,13 @@ def troubleshoot_ibm_issue_prompt(symptom_or_error: str, product: Optional[str] 
 # ASGI Application for HTTP/SSE Container Deployments (e.g., Uvicorn)
 # ============================================================================
 app = mcp.sse_app()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # ============================================================================
 # Main Entry Point
