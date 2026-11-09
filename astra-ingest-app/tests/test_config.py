@@ -20,7 +20,7 @@ def test_defaults_applied():
     assert s.jobs_collection == "ingest_jobs"
     assert s.concurrency == 8
     assert s.insert_batch == 40
-    assert s.chunk_size == 1000 and s.chunk_overlap == 150
+    assert s.chunk_size == 600 and s.chunk_overlap == 100
     assert s.max_file_bytes == 2 * 1024 ** 2
     assert s.max_job_failures == 200
     assert s.max_job_events == 100

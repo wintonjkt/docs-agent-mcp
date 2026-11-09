@@ -66,8 +66,7 @@ async def health_check(request: Any) -> JSONResponse:
         "service": "ibm-docs-rag-mcp",
         "version": "1.0.0",
         "mcp_endpoints": {
-            "sse": "/sse",
-            "messages": "/messages/",
+            "streamable_http": "/mcp",
         },
     })
 
@@ -431,9 +430,9 @@ def troubleshoot_ibm_issue_prompt(symptom_or_error: str, product: Optional[str] 
 
 
 # ============================================================================
-# ASGI Application for HTTP/SSE Container Deployments (e.g., Uvicorn)
+# ASGI Application for Streamable HTTP Container Deployments (e.g., Uvicorn)
 # ============================================================================
-app = mcp.sse_app()
+app = mcp.streamable_http_app()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -447,11 +446,11 @@ app.add_middleware(
 # ============================================================================
 
 if __name__ == "__main__":
-    # If PORT env var or '--sse' argument is given, run SSE transport; otherwise default to stdio
+    # If MCP_TRANSPORT=streamable-http or '--http' argument is given, run Streamable HTTP; otherwise default to stdio
     transport_mode = os.getenv("MCP_TRANSPORT", "stdio").lower()
-    if transport_mode == "sse" or "--sse" in sys.argv:
-        logger.info("Starting ibm-docs-rag-agent MCP Server over SSE transport on 0.0.0.0:8080...")
-        mcp.run(transport="sse")
+    if transport_mode in ("streamable-http", "http") or "--http" in sys.argv:
+        logger.info("Starting ibm-docs-rag-agent MCP Server over Streamable HTTP transport on 0.0.0.0:8080/mcp...")
+        mcp.run(transport="streamable-http")
     else:
         logger.info("Starting ibm-docs-rag-agent MCP Server over stdio transport...")
         mcp.run(transport="stdio")

@@ -86,12 +86,13 @@ python server.py
 
 ### Registering in `mcp.json`
 
-#### Option A: Remote SSE Server (OpenShift Deployed)
+#### Option A: Remote Streamable HTTP Server (OpenShift Deployed)
 ```json
 {
   "mcpServers": {
-    "ibm-docs-rag-remote": {
-      "url": "https://ibm-docs-rag-mcp-astra-ingest.apps.itz-5ju5e0.infra01-lb.lon04.techzone.ibm.com/sse"
+    "ibm-docs-rag": {
+      "type": "streamable-http",
+      "url": "https://ibm-docs-rag-mcp-astra-ingest.apps.itz-5ju5e0.infra01-lb.lon04.techzone.ibm.com/mcp"
     }
   }
 }

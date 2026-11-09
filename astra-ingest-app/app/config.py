@@ -73,8 +73,9 @@ class Settings:
     cos_read_timeout: int = 30        # seconds
     copy_object_max_bytes: int = 4 * 1024 ** 3  # larger objects use the managed multipart copy (COPY_OBJECT_MAX_BYTES)
     # --- Chunking / limits ---
-    chunk_size: int = 1000            # characters per chunk (CHUNK_SIZE)
-    chunk_overlap: int = 150          # characters shared between chunks (CHUNK_OVERLAP)
+    # Default 600 chars keeps token-dense markdown (~2 chars/token) under the 512-token embedding limit.
+    chunk_size: int = 600             # characters per chunk (CHUNK_SIZE)
+    chunk_overlap: int = 100          # characters shared between chunks (CHUNK_OVERLAP)
     max_file_bytes: int = 2 * 1024 ** 2   # files larger than this are skipped (MAX_FILE_BYTES)
     max_job_failures: int = 200       # cap on failures stored per job (MAX_JOB_FAILURES)
     max_job_events: int = 100         # cap on recent events kept per event log of a job (MAX_JOB_EVENTS)
@@ -146,8 +147,8 @@ def load_settings(env: Optional[Mapping[str, str]] = None) -> Settings:
     cos_connect_timeout = _parse_number(env, "COS_CONNECT_TIMEOUT", 10, int, 1, errors)
     cos_read_timeout = _parse_number(env, "COS_READ_TIMEOUT", 30, int, 1, errors)
     copy_object_max_bytes = _parse_number(env, "COPY_OBJECT_MAX_BYTES", 4 * 1024 ** 3, int, 1, errors)
-    chunk_size = _parse_number(env, "CHUNK_SIZE", 1000, int, 1, errors)
-    chunk_overlap = _parse_number(env, "CHUNK_OVERLAP", 150, int, 0, errors)
+    chunk_size = _parse_number(env, "CHUNK_SIZE", 600, int, 1, errors)
+    chunk_overlap = _parse_number(env, "CHUNK_OVERLAP", 100, int, 0, errors)
     max_file_bytes = _parse_number(env, "MAX_FILE_BYTES", 2 * 1024 ** 2, int, 1, errors)
     max_job_failures = _parse_number(env, "MAX_JOB_FAILURES", 200, int, 1, errors)
     max_job_events = _parse_number(env, "MAX_JOB_EVENTS", 100, int, 1, errors)
