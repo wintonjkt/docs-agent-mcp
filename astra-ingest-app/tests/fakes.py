@@ -66,15 +66,43 @@ class FakeCOS:
             raise Exception("delete denied")
         self.b[Bucket].pop(Key, None)
 
-    def list_objects_v2(self, Bucket, Prefix="", MaxKeys=1000, StartAfter=None):
+    def list_objects_v2(self, Bucket, Prefix="", MaxKeys=1000, StartAfter=None, Delimiter=None, ContinuationToken=None):
         self.list_calls += 1
         self.max_keys_seen = max(self.max_keys_seen, MaxKeys)
-        ks = sorted(k for k in self.b[Bucket] if k.startswith(Prefix) and (not StartAfter or k > StartAfter))
-        page = ks[:MaxKeys]
-        return {
-            "Contents": [{"Key": k, "Size": len(self.b[Bucket][k]), "ETag": self.etag(self.b[Bucket][k])} for k in page],
-            "IsTruncated": len(ks) > MaxKeys,
+        if Delimiter is None and ContinuationToken is None:
+            ks = sorted(k for k in self.b[Bucket] if k.startswith(Prefix) and (not StartAfter or k > StartAfter))
+            page = ks[:MaxKeys]
+            return {
+                "Contents": [{"Key": k, "Size": len(self.b[Bucket][k]), "ETag": self.etag(self.b[Bucket][k])} for k in page],
+                "IsTruncated": len(ks) > MaxKeys,
+            }
+
+        # Delimiter / continuation mode: keys containing the delimiter after Prefix collapse into one
+        # CommonPrefixes entry; both kinds count toward MaxKeys. The token is the last entry name returned.
+        after = ContinuationToken or StartAfter
+        names = set()
+        for k in self.b[Bucket]:
+            if not k.startswith(Prefix):
+                continue
+            rest = k[len(Prefix):]
+            if Delimiter and Delimiter in rest:
+                names.add(Prefix + rest.split(Delimiter)[0] + Delimiter)
+            else:
+                names.add(k)
+        entries = sorted(n for n in names if not after or n > after)
+        page = entries[:MaxKeys]
+        truncated = len(entries) > MaxKeys
+        resp = {
+            "Contents": [
+                {"Key": n, "Size": len(self.b[Bucket][n]), "ETag": self.etag(self.b[Bucket][n])}
+                for n in page if n in self.b[Bucket]
+            ],
+            "CommonPrefixes": [{"Prefix": n} for n in page if n not in self.b[Bucket]],
+            "IsTruncated": truncated,
         }
+        if truncated:
+            resp["NextContinuationToken"] = page[-1]
+        return resp
 
     def get_object(self, Bucket, Key):
         self.get_calls.append(Key)

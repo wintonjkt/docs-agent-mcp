@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 
 from .config import Settings
 from .controller import JobController
-from .cos_client import discover_cos_batch
+from .cos_client import MAX_PREFIXES, discover_cos_batch, list_cos_prefixes
 from .jobs import (
     DuplicateActiveJobError,
     InvalidTransition,
@@ -203,6 +203,28 @@ def preview_prefix(
             "count": len(items),
             "has_more": has_more,
             "items": items,
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.get("/prefixes", dependencies=[Depends(verify_auth)])
+def list_prefixes(
+    bucket: str = Query(..., description="Bucket name"),
+    prefix: str = Query("", description="Parent key prefix; child prefixes one level below are returned"),
+    settings: Settings = Depends(get_settings),
+    cos_client: Any = Depends(get_cos_client),
+) -> Dict[str, Any]:
+    try:
+        prefixes, truncated = list_cos_prefixes(
+            cos_client, settings, bucket_name=bucket, prefix=prefix, max_prefixes=MAX_PREFIXES,
+        )
+        return {
+            "bucket": bucket,
+            "prefix": prefix,
+            "count": len(prefixes),
+            "truncated": truncated,
+            "prefixes": prefixes,
         }
     except Exception as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc

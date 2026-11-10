@@ -3,11 +3,56 @@ import time
 import pytest
 
 from app.cos_client import (
-    discover_cos_batch, fetch_document, head_object_or_none, move_object, normalize_dest_prefix,
-    validate_destination,
+    discover_cos_batch, fetch_document, head_object_or_none, list_cos_prefixes, move_object,
+    normalize_dest_prefix, validate_destination,
 )
 from app.retry import ErrorClass
 from tests.fakes import ClientErr, FakeCOS, FakeCollection
+
+
+# ---------------------------- prefix listing ---------------------------- #
+PREFIX_KEYS = ["root.md", "docs/a.md", "docs/cp4ba/b.md", "docs/cp4ba/deep/c.md", "docs/odm/d.md", "other/e.md"]
+
+
+def test_list_prefixes_root_level(settings):
+    prefixes, truncated = list_cos_prefixes(FakeCOS(PREFIX_KEYS), settings, "src")
+    assert prefixes == ["docs/", "other/"]
+    assert truncated is False
+
+
+def test_list_prefixes_nested_level_returns_full_prefixes(settings):
+    cos = FakeCOS(PREFIX_KEYS)
+    assert list_cos_prefixes(cos, settings, "src", "docs/") == (["docs/cp4ba/", "docs/odm/"], False)
+    assert list_cos_prefixes(cos, settings, "src", "docs/cp4ba/") == (["docs/cp4ba/deep/"], False)
+    assert list_cos_prefixes(cos, settings, "src", "docs/odm/") == ([], False)
+
+
+def test_list_prefixes_cap_sets_truncated(settings):
+    cos = FakeCOS([f"p{i:02d}/f.md" for i in range(5)])
+    prefixes, truncated = list_cos_prefixes(cos, settings, "src", max_prefixes=3)
+    assert prefixes == ["p00/", "p01/", "p02/"]
+    assert truncated is True
+    # exactly at the cap is not truncated
+    assert list_cos_prefixes(cos, settings, "src", max_prefixes=5) == ([f"p{i:02d}/" for i in range(5)], False)
+
+
+def test_list_prefixes_follows_continuation_tokens(settings):
+    cos = FakeCOS([f"p{i:04d}/f.md" for i in range(1200)])
+    prefixes, truncated = list_cos_prefixes(cos, settings, "src", max_prefixes=5000)
+    assert len(prefixes) == 1200 and truncated is False
+    assert cos.list_calls == 2
+
+
+def test_fake_cos_without_delimiter_is_unchanged():
+    resp = FakeCOS(PREFIX_KEYS).list_objects_v2("src", Prefix="docs/")
+    assert [c["Key"] for c in resp["Contents"]] == ["docs/a.md", "docs/cp4ba/b.md", "docs/cp4ba/deep/c.md", "docs/odm/d.md"]
+    assert "CommonPrefixes" not in resp
+
+
+def test_fake_cos_delimiter_excludes_collapsed_keys_from_contents():
+    resp = FakeCOS(PREFIX_KEYS).list_objects_v2("src", Prefix="docs/", Delimiter="/")
+    assert [c["Key"] for c in resp["Contents"]] == ["docs/a.md"]
+    assert [p["Prefix"] for p in resp["CommonPrefixes"]] == ["docs/cp4ba/", "docs/odm/"]
 
 
 # ------------------------------- listing -------------------------------- #

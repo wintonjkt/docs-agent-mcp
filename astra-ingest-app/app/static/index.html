@@ -110,6 +110,69 @@
         .log-entry { margin-bottom: 4px; }
         .log-time { color: #858585; margin-right: 8px; }
         .banner-warning { background: #fff8e1; border: 1px solid #ffe082; color: #855700; padding: 12px 16px; border-radius: 4px; margin-bottom: 16px; font-size: 14px; }
+        .breadcrumbs {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            margin-bottom: 12px;
+            padding: 6px 10px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+        }
+        .breadcrumb-item {
+            color: var(--accent);
+            cursor: pointer;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .breadcrumb-item:hover { text-decoration: underline; }
+        .breadcrumb-item.active {
+            color: var(--text-primary);
+            cursor: default;
+            font-weight: 600;
+        }
+        .breadcrumb-item.active:hover { text-decoration: none; }
+        .breadcrumb-sep { color: var(--text-secondary); user-select: none; }
+        .prefix-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        .prefix-item {
+            display: inline-flex;
+            align-items: center;
+            padding: 6px 12px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            color: var(--text-primary);
+        }
+        .prefix-item:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: var(--badge-bg);
+        }
+        .prefix-status {
+            font-size: 13px;
+            color: var(--text-secondary);
+            padding: 8px 0;
+        }
+        .prefix-status.error {
+            color: var(--danger);
+        }
+        .prefix-truncation {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 8px;
+            font-style: italic;
+        }
     </style>
 </head>
 <body>
@@ -126,6 +189,21 @@
         </header>
 
         <div id="breakerBanner" class="banner-warning" style="display: none;"></div>
+
+        <!-- COS Prefixes Card -->
+        <div class="card" id="prefixBrowserCard">
+            <div class="card-header">
+                <div>
+                    <span class="card-title">COS Prefixes</span>
+                    <span id="prefixBrowserBucket" style="font-size: 13px; color: var(--text-secondary); margin-left: 8px;"></span>
+                </div>
+                <button type="button" onclick="refreshPrefixes()">Refresh</button>
+            </div>
+            <div id="prefixBreadcrumbs" class="breadcrumbs"></div>
+            <div id="prefixBrowserStatus" class="prefix-status" style="display: none;"></div>
+            <div id="prefixList" class="prefix-list"></div>
+            <div id="prefixTruncation" class="prefix-truncation" style="display: none;"></div>
+        </div>
 
         <div class="grid-2">
             <!-- Start Job Card -->
@@ -237,6 +315,7 @@
     <script>
         let currentJobId = null;
         let pollTimer = null;
+        let currentBrowserPrefix = '';
 
         function getHeaders() {
             const token = localStorage.getItem('astra_ingest_token') || '';
@@ -252,6 +331,137 @@
                 localStorage.setItem('astra_ingest_token', token);
                 alert('Access token saved.');
                 loadJobs();
+                loadPrefixes('');
+            }
+        }
+
+        function refreshPrefixes() {
+            loadPrefixes(currentBrowserPrefix);
+        }
+
+        function selectPrefix(fullPrefix) {
+            const prefixInput = document.getElementById('prefix');
+            if (prefixInput) prefixInput.value = fullPrefix;
+            loadPrefixes(fullPrefix);
+        }
+
+        function renderBreadcrumbs(prefix) {
+            const container = document.getElementById('prefixBreadcrumbs');
+            if (!container) return;
+            container.textContent = '';
+
+            const rootItem = document.createElement('span');
+            rootItem.textContent = 'root';
+            if (!prefix) {
+                rootItem.className = 'breadcrumb-item active';
+            } else {
+                rootItem.className = 'breadcrumb-item';
+                rootItem.onclick = () => {
+                    const prefixInput = document.getElementById('prefix');
+                    if (prefixInput) prefixInput.value = '';
+                    loadPrefixes('');
+                };
+            }
+            container.appendChild(rootItem);
+
+            if (!prefix) return;
+
+            const trimmed = prefix.endsWith('/') ? prefix.slice(0, -1) : prefix;
+            const segments = trimmed.split('/').filter(Boolean);
+            let accPath = '';
+
+            segments.forEach((seg, idx) => {
+                const sep = document.createElement('span');
+                sep.className = 'breadcrumb-sep';
+                sep.textContent = '/';
+                container.appendChild(sep);
+
+                accPath += seg + '/';
+                const pathForSegment = accPath;
+
+                const segItem = document.createElement('span');
+                segItem.textContent = seg + '/';
+                if (idx === segments.length - 1) {
+                    segItem.className = 'breadcrumb-item active';
+                } else {
+                    segItem.className = 'breadcrumb-item';
+                    segItem.onclick = () => {
+                        const prefixInput = document.getElementById('prefix');
+                        if (prefixInput) prefixInput.value = pathForSegment;
+                        loadPrefixes(pathForSegment);
+                    };
+                }
+                container.appendChild(segItem);
+            });
+        }
+
+        async function loadPrefixes(prefix = '') {
+            currentBrowserPrefix = prefix;
+            const bucketEl = document.getElementById('srcBucket');
+            const bucket = bucketEl ? bucketEl.value.trim() : '';
+            const bucketLabel = document.getElementById('prefixBrowserBucket');
+            const statusEl = document.getElementById('prefixBrowserStatus');
+            const listEl = document.getElementById('prefixList');
+            const truncEl = document.getElementById('prefixTruncation');
+
+            if (bucketLabel) bucketLabel.textContent = bucket ? `(${bucket})` : '';
+            renderBreadcrumbs(prefix);
+            if (listEl) listEl.textContent = '';
+            if (truncEl) truncEl.style.display = 'none';
+
+            if (!statusEl || !listEl) return;
+
+            if (!bucket) {
+                statusEl.className = 'prefix-status';
+                statusEl.textContent = 'Specify a Source Bucket to browse prefixes.';
+                statusEl.style.display = 'block';
+                return;
+            }
+
+            statusEl.className = 'prefix-status';
+            statusEl.textContent = 'Loading prefixes...';
+            statusEl.style.display = 'block';
+
+            try {
+                const url = `/api/prefixes?bucket=${encodeURIComponent(bucket)}&prefix=${encodeURIComponent(prefix)}`;
+                const res = await fetch(url, { headers: getHeaders() });
+                const data = await res.json();
+
+                if (!res.ok) {
+                    throw new Error(data.detail || `Request failed (${res.status})`);
+                }
+
+                const prefixes = Array.isArray(data.prefixes) ? data.prefixes : [];
+
+                if (prefixes.length === 0) {
+                    statusEl.className = 'prefix-status';
+                    statusEl.textContent = 'No sub-prefixes found under this path.';
+                    statusEl.style.display = 'block';
+                } else {
+                    statusEl.style.display = 'none';
+                    prefixes.forEach(p => {
+                        let label = p;
+                        if (prefix && p.startsWith(prefix)) {
+                            label = p.slice(prefix.length);
+                        }
+                        const itemBtn = document.createElement('button');
+                        itemBtn.type = 'button';
+                        itemBtn.className = 'prefix-item';
+                        itemBtn.textContent = '📁 ' + label;
+                        itemBtn.title = p;
+                        itemBtn.onclick = () => selectPrefix(p);
+                        listEl.appendChild(itemBtn);
+                    });
+                }
+
+                if (data.truncated && truncEl) {
+                    truncEl.textContent = `Showing first ${prefixes.length} prefixes (truncated).`;
+                    truncEl.style.display = 'block';
+                }
+            } catch (err) {
+                statusEl.className = 'prefix-status error';
+                statusEl.textContent = 'Error loading prefixes: ' + err.message;
+                statusEl.style.display = 'block';
             }
         }
 
@@ -260,6 +470,17 @@
             if (saved) {
                 document.getElementById('apiToken').value = saved;
             }
+
+            const srcBucketEl = document.getElementById('srcBucket');
+            if (srcBucketEl) {
+                srcBucketEl.addEventListener('change', () => {
+                    const prefixInput = document.getElementById('prefix');
+                    if (prefixInput) prefixInput.value = '';
+                    loadPrefixes('');
+                });
+            }
+
+            loadPrefixes('');
             loadJobs();
             startPolling();
         };

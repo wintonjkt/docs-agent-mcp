@@ -164,3 +164,31 @@ def test_preview_endpoint(api_setup):
     assert data["bucket"] == "src"
     assert data["count"] == 2
     assert len(data["items"]) == 2
+
+
+def test_prefixes_endpoint(api_setup):
+    client, settings, _ = api_setup
+    headers = {"X-Access-Token": settings.ui_access_token}
+
+    r = client.get("/api/prefixes", params={"bucket": "src"}, headers=headers)
+    assert r.status_code == 200
+    assert r.json() == {"bucket": "src", "prefix": "", "count": 1, "truncated": False, "prefixes": ["docs/"]}
+
+    r = client.get("/api/prefixes", params={"bucket": "src", "prefix": "docs/"}, headers=headers)
+    assert r.status_code == 200
+    assert r.json() == {"bucket": "src", "prefix": "docs/", "count": 0, "truncated": False, "prefixes": []}
+
+
+def test_prefixes_endpoint_requires_auth(api_setup):
+    client, settings, _ = api_setup
+    assert client.get("/api/prefixes", params={"bucket": "src"}).status_code == 401
+    r = client.get("/api/prefixes", params={"bucket": "src"}, headers={"X-Access-Token": "wrong-token"})
+    assert r.status_code == 401
+
+
+def test_prefixes_endpoint_error_maps_to_400(api_setup, no_sleep):
+    client, settings, _ = api_setup
+    headers = {"X-Access-Token": settings.ui_access_token}
+    r = client.get("/api/prefixes", params={"bucket": "missing-bucket"}, headers=headers)
+    assert r.status_code == 400
+

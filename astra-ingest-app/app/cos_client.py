@@ -149,6 +149,46 @@ def discover_cos_batch(
     return matched_items, (last_key_examined if has_more else None), has_more
 
 
+MAX_PREFIXES = 500
+
+
+def list_cos_prefixes(
+    cos_client: Any,
+    settings: Settings,
+    bucket_name: str,
+    prefix: str = "",
+    max_prefixes: int = MAX_PREFIXES,
+) -> Tuple[List[str], bool]:
+    """List the immediate child prefixes ("folders") of ``prefix`` using the ``/`` delimiter.
+
+    Returns ``(prefixes, truncated)``. Each prefix is a full key prefix ending in ``/``. ``truncated`` is
+    True only when more than ``max_prefixes`` child prefixes exist; the first ``max_prefixes`` are returned.
+    """
+    policy = RetryPolicy.from_settings(settings)
+    prefixes: List[str] = []
+    token: Optional[str] = None
+
+    while True:
+        params: Dict[str, Any] = {"Bucket": bucket_name, "Prefix": prefix, "Delimiter": "/", "MaxKeys": 1000}
+        if token:
+            params["ContinuationToken"] = token
+
+        resp = with_retry(
+            lambda p=params: cos_client.list_objects_v2(**p),
+            policy,
+            action_name=f"list prefixes in '{bucket_name}'",
+        )
+
+        for entry in resp.get("CommonPrefixes", []):
+            if len(prefixes) >= max_prefixes:
+                return prefixes, True
+            prefixes.append(entry["Prefix"])
+
+        token = resp.get("NextContinuationToken")
+        if not resp.get("IsTruncated", False) or not token:
+            return prefixes, False
+
+
 # --------------------------------------------------------------------------- #
 # Head / destination validation
 # --------------------------------------------------------------------------- #
