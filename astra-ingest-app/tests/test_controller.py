@@ -106,3 +106,40 @@ def test_job_controller_lifecycle(settings):
     assert loaded["desired_state"] == "STOPPED"
 
     ctrl.shutdown(timeout=1.0)
+
+
+def _stop_env(settings, keys):
+    cos = FakeCOS(keys=keys)
+    db = FakeDB()
+    db.cols[settings.jobs_collection] = FakeJobsCollection()
+    db.cols[settings.collection_name] = FakeCollection()
+    astra_store = AstraStore(settings, database=db)
+    return cos, astra_store, JobStore(astra_store, settings)
+
+
+def test_job_worker_finalizes_stopping_job_to_stopped(settings):
+    """A job left in STOPPING (e.g. recovered after restart) must end STOPPED, not fail to start."""
+    cos, astra_store, job_store = _stop_env(settings, ["docs/a.txt", "docs/b.txt"])
+    job = job_store.create_job("src", "docs/")
+    # Simulate a crashed worker: job was RUNNING, then a stop was requested, then the lease expired.
+    owned = job_store.acquire_lease(job["_id"])
+    job_store.transition_status(owned, RUNNING)
+    job_store.set_desired_state(job["_id"], "STOPPED", reason="test stop")
+    job_store.release_lease(owned)
+    assert job_store.load_job(job["_id"])["status"] == "STOPPING"
+
+    JobWorker(job["_id"], job_store, astra_store, cos, settings).run()
+
+    loaded = job_store.load_job(job["_id"])
+    assert loaded["status"] == STOPPED
+    assert loaded["counters"].get("ingested", 0) == 0
+
+
+def test_stop_job_does_not_set_worker_stop_flag(settings):
+    cos, astra_store, job_store = _stop_env(settings, ["docs/a.txt"])
+    ctrl = JobController(settings, job_store, astra_store, cos)
+    job = ctrl.start_job("src", "docs/")
+    jid = job["_id"]
+    ctrl.stop_job(jid)
+    assert not ctrl._workers[jid]._stop_requested.is_set()
+    ctrl.shutdown(timeout=2.0)

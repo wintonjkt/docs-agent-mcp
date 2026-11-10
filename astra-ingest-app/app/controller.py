@@ -103,7 +103,9 @@ class JobWorker(threading.Thread):
         concurrency = int((job.get("params") or {}).get("concurrency") or settings.concurrency)
 
         try:
-            if job.get("status") != RUNNING:
+            # A job recovered in STOPPING must not go back to RUNNING (not an allowed transition);
+            # the loop below sees desired_state=STOPPED and finalizes it as STOPPED.
+            if job.get("status") not in (RUNNING, STOPPING):
                 js.transition_status(job, RUNNING)
         except (JobLeaseLost, JobStatusChanged, Exception) as exc:
             logger.error("Failed to start job %s: %s", self.job_id, exc)
@@ -334,11 +336,9 @@ class JobController:
         return res.job
 
     def stop_job(self, job_id: str, reason: str = "") -> Dict[str, Any]:
+        # Do not call worker.request_stop() here: that exits the worker loop without running the
+        # STOPPING -> STOPPED transition. The worker polls desired_state and finalizes the stop itself.
         res = self.job_store.set_desired_state(job_id, "STOPPED", reason=reason)
-        with self._lock:
-            worker = self._workers.get(job_id)
-            if worker:
-                worker.request_stop()
         return res.job
 
     def recover_jobs(self) -> List[str]:
